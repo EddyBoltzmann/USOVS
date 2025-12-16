@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Profile - USOVS</title>
+  </head>
+  <body>
+    <h1>Profile</h1>
+    <p>Username: {{ request.user.username }}</p>
+    <p>Email: {{ request.user.email }}</p>
+    <p>Verified: {{ request.user.is_verified_student }}</p>
+
+    <a href="/admin/">Admin</a>
+  </body>
+</html>

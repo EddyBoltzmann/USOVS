@@ -1,0 +1,29 @@
+# Optional Codecov configuration for USOVS
+# This file is commented and optional. Install Codecov GitHub App or set CODECOV_TOKEN
+# in repository secrets to enable full functionality.
+
+# The project-level 'status' can enforce a minimum overall coverage
+# (Codecov may treat values as integers or floats depending on version).
+coverage:
+  status:
+    project:
+      default:
+        target: 80   # desired minimum overall coverage percentage
+    patch:
+      default:
+        target: 80   # ensure PRs do not reduce coverage below this threshold
+        require_changes: true
+
+# Flags: you can use to set different thresholds per file set, path, or language
+# For example:
+# flags:
+#   unit:
+#     paths: ["tests/unit/"]
+#     target: 85
+
+# Behavior note:
+# - This file is optional. For private repos, prefer installing the Codecov GitHub App
+#   instead of storing tokens in the repository.
+# - In this project we treat CI (GitHub Actions scripts and the coverage checker)
+#   as the authoritative enforcement mechanism (source of truth). Codecov is used
+#   primarily as a visibility and reporting layer.

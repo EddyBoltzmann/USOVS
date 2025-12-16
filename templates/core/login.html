@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Login - USOVS</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  </head>
+  <body>
+    <h1>Login</h1>
+    <p>Use phone or email OTP via Firebase</p>
+
+    <div id="auth-ui">
+      <input id="email" placeholder="Email" />
+      <button id="send-email">Send Email Link</button>
+
+      <input id="phone" placeholder="Phone (E.164)" />
+      <div id="recaptcha-container"></div>
+      <button id="send-sms">Send SMS OTP</button>
+    </div>
+
+    <script>
+      const firebaseConfig = {{ firebase_config|safe|json_script:'firebase-config' }};
+      const app = firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+
+      document.getElementById('send-email').addEventListener('click', async () => {
+        const email = document.getElementById('email').value;
+        try {
+          await auth.sendSignInLinkToEmail(email, { url: window.location.href, handleCodeInApp: true });
+          alert('Email link sent');
+        } catch (e) { alert(e.message) }
+      });
+
+      document.getElementById('send-sms').addEventListener('click', async () => {
+        const phone = document.getElementById('phone').value;
+        window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container', { size: 'invisible' });
+        try {
+          const confirmationResult = await auth.signInWithPhoneNumber(phone, window.recaptchaVerifier);
+          const code = prompt('Enter SMS code');
+          const result = await confirmationResult.confirm(code);
+          const idToken = await result.user.getIdToken();
+          await fetch('{% url "firebase_verify" %}', { method: 'POST', body: JSON.stringify({ id_token: idToken }), headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' } });
+          window.location = '/profile/';
+        } catch (e) { alert(e.message) }
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Vote - {{ election.title }}</title>
+  </head>
+  <body>
+    <h1>Vote in {{ election.title }}</h1>
+    <form method="post">
+      {% csrf_token %} {% for candidate in election.candidates.all %}
+      <div>
+        <input
+          type="radio"
+          name="candidate_id"
+          value="{{ candidate.id }}"
+          id="c{{ candidate.id }}"
+        />
+        <label for="c{{ candidate.id }}">{{ candidate.name }}</label>
+      </div>
+      {% endfor %}
+      <button type="submit">Cast Vote</button>
+    </form>
+  </body>
+</html>

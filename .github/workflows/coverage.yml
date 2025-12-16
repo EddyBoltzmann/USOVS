@@ -1,0 +1,91 @@
+name: Coverage
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.10]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r dev-requirements.txt
+
+      - name: Apply migrations
+        env:
+          DJANGO_SECRET_KEY: test-secret
+          DJANGO_USE_SQLITE_FOR_TESTS: '1'
+        run: |
+          python manage.py migrate
+
+      - name: Run coverage
+        env:
+          DJANGO_SECRET_KEY: test-secret
+          DJANGO_USE_SQLITE_FOR_TESTS: '1'
+        run: |
+          coverage run --source='.' manage.py test
+          coverage xml -o coverage.xml
+          coverage report -m
+
+      - name: Check coverage threshold
+        # Uses repo secret COVERAGE_THRESHOLD if set, otherwise defaults to 80
+        env:
+          COVERAGE_THRESHOLD: ${{ secrets.COVERAGE_THRESHOLD }}
+        run: |
+          THRESHOLD=${COVERAGE_THRESHOLD:-80}
+          echo "Checking coverage threshold: $THRESHOLD%"
+          python scripts/check_coverage.py --file coverage.xml --threshold "$THRESHOLD"
+
+      - name: Generate coverage badge
+        env:
+          COVERAGE_THRESHOLD: ${{ secrets.COVERAGE_THRESHOLD }}
+        run: |
+          THRESHOLD=${COVERAGE_THRESHOLD:-80}
+          python scripts/generate_coverage_badge.py --file coverage.xml --threshold "$THRESHOLD" --output badges/coverage.svg
+
+      - name: Commit coverage badge (push to repo on push events only)
+        if: ${{ github.event_name == 'push' && (github.event.head_commit == null || !contains(github.event.head_commit.message, 'update coverage badge')) }}
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'badges/coverage.svg';
+            const content = fs.readFileSync(path, {encoding: 'utf8'});
+            // Try to get existing file sha
+            let sha = null;
+            try {
+              const existing = await github.rest.repos.getContent({ owner: context.repo.owner, repo: context.repo.repo, path });
+              sha = existing.data.sha;
+            } catch (e) {
+              // file may not exist
+            }
+            const encoded = Buffer.from(content, 'utf8').toString('base64');
+            await github.rest.repos.createOrUpdateFileContents({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path,
+              message: 'chore(ci): update coverage badge',
+              content: encoded,
+              sha,
+            });
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

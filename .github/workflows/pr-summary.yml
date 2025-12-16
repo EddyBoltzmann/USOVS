@@ -1,0 +1,29 @@
+name: PR CI Summary
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    if: "always()"
+    steps:
+      - name: Post CI result to PR(s)
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const conclusion = context.payload.workflow_run.conclusion;
+            const url = context.payload.workflow_run.html_url;
+            const status = conclusion === 'success' ? '✅ **CI passed**' : '❌ **CI failed**';
+            const body = `${status}\n\nWorkflow: ${url}\n\nEnsure tests and lint pass; check coverage workflow for details.`;
+            const prs = context.payload.workflow_run.pull_requests || [];
+            for (const pr of prs) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body,
+              });
+            }
