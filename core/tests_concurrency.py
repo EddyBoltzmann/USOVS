@@ -3,7 +3,6 @@ from django.urls import reverse
 from unittest.mock import patch
 from django.utils import timezone
 from concurrent.futures import ThreadPoolExecutor
-import hashlib
 
 try:
     import requests
