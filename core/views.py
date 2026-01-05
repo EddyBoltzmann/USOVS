@@ -8,7 +8,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.utils.crypto import get_random_string
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.conf import settings
 from .models import User, AuditLog
 
@@ -95,10 +95,18 @@ def firebase_verify(request):
     # Atomic check-and-mark for token reuse prevention
     try:
         with transaction.atomic():
-            token_use, created = FirebaseTokenUse.objects.select_for_update().get_or_create(
-                token_hash=token_hash,
-                defaults={'uid': uid, 'issued_at': (datetime.datetime.fromtimestamp(int(iat), tz=datetime.timezone.utc) if iat else None), 'expires_at': (datetime.datetime.fromtimestamp(int(decoded.get('exp')), tz=datetime.timezone.utc) if decoded.get('exp') else None), 'ip': ip, 'details': {'email': email, 'phone': phone}}
-            )
+            try:
+                token_use, created = FirebaseTokenUse.objects.select_for_update().get_or_create(
+                    token_hash=token_hash,
+                    defaults={'uid': uid, 'issued_at': (datetime.datetime.fromtimestamp(int(iat), tz=datetime.timezone.utc) if iat else None), 'expires_at': (datetime.datetime.fromtimestamp(int(decoded.get('exp')), tz=datetime.timezone.utc) if decoded.get('exp') else None), 'ip': ip, 'details': {'email': email, 'phone': phone}}
+                )
+            except IntegrityError:
+                # Another concurrent transaction created the token simultaneously.
+                logger.info('Token create race detected for hash %s', token_hash)
+                AuditLog.objects.create(action='firebase_token_create_race', ip=ip, details={'uid': uid, 'token_hash': token_hash})
+                # Fetch the existing token row and acquire a lock
+                token_use = FirebaseTokenUse.objects.select_for_update().get(token_hash=token_hash)
+                created = False
 
             if not created and token_use.used_at:
                 # Token was already used — replay detected
