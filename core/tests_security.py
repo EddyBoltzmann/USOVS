@@ -38,6 +38,20 @@ class SecurityTests(TestCase):
         reuse_logs = AuditLog.objects.filter(action='firebase_token_reuse', details__uid='firebase-uid-123')
         self.assertGreaterEqual(reuse_logs.count(), 1)
 
+    def test_token_create_race_handled(self):
+        # Simulate a concurrent create race by pre-creating the token before verification
+        decoded = {'uid': 'race-uid', 'email': 'race@uni.edu', 'iat': int(timezone.now().timestamp())}
+        import hashlib
+        token_hash = hashlib.sha256('tokrace'.encode()).hexdigest()
+        from .firebase_models import FirebaseTokenUse
+        FirebaseTokenUse.objects.create(token_hash=token_hash, uid=decoded['uid'], issued_at=timezone.now())
+
+        with patch('firebase_admin.auth.verify_id_token', return_value=decoded):
+            resp = self.client.post(reverse('firebase_verify'), data='{"id_token": "tokrace"}', content_type='application/json')
+            self.assertEqual(resp.status_code, 200)
+            resp2 = self.client.post(reverse('firebase_verify'), data='{"id_token": "tokrace"}', content_type='application/json')
+            self.assertEqual(resp2.status_code, 403)
+
     def test_per_ip_attempt_limit_triggers(self):
         # Force a low limit for test
         from django.test import override_settings
