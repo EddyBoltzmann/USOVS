@@ -1,8 +1,7 @@
-Fix: handle token-create race during OTP verification
+CI: add Postgres job & concurrency test for OTP verification
 
-This small fix makes `firebase_verify` robust against a rare race where two concurrent requests attempt to create the same `FirebaseTokenUse` row simultaneously. Changes:
-- Catch `IntegrityError` around `get_or_create` and fetch existing row under `select_for_update()` lock.
-- Add `AuditLog` entry `firebase_token_create_race` to aid debugging.
-- Add `test_token_create_race_handled` to `core/tests_security.py` to ensure the flow is correct.
+This PR introduces a PostgreSQL-backed CI job that runs the full test suite against PostgreSQL (Postgres 14 service). It also adds a concurrency test that uses `LiveServerTestCase` and real HTTP requests to validate that only one concurrent verification of the same token succeeds (prevents double-claiming of one-time tokens).
 
-This PR targets `feature/otp-concurrency-ci` as a follow-up to the concurrency test work.
+Notes:
+- The concurrency test is intentionally skipped on SQLite, and the CI job runs it on Postgres.
+- The Postgres job uses a service container in GitHub Actions and runs migrations before tests.
